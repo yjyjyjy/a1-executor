@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "yaml2json .env.yaml >.env.json && env-cmd -r ./.env.json functions-framework --target=sdrequest",
+    "start": "env-cmd -r ./.env.json functions-framework --target=sdrequest",
     "debug": "node --inspect node_modules/.bin/functions-framework --target=sdrequest",
     "deploy": "gcloud functions deploy sdrequest --gen2 --region=us-east1 --trigger-http --runtime nodejs18 --allow-unauthenticated --env-vars-file .env.yaml"
   },
@@ -14,7 +14,9 @@
   "dependencies": {
     "@google-cloud/functions-framework": "^3.1.3",
     "@supabase/supabase-js": "^2.11.0",
+    "axios": "^1.3.4",
     "env-cmd": "^10.1.0",
+    "node-fetch": "^3.3.1",
     "yaml2json": "^1.0.2"
   }
 }
