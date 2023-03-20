@@ -6,12 +6,13 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "env-cmd -r ./.env.json functions-framework --target=sdrequest",
-    "debug": "node --inspect node_modules/.bin/functions-framework --target=sdrequest",
+    "debug": "env-cmd -r ./.env.json node --inspect node_modules/.bin/functions-framework --target=sdrequest",
     "deploy": "gcloud functions deploy sdrequest --gen2 --region=us-east1 --trigger-http --runtime nodejs18 --allow-unauthenticated --env-vars-file .env.yaml"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-ec2": "^3.294.0",
     "@google-cloud/functions-framework": "^3.1.3",
     "@supabase/supabase-js": "^2.11.0",
     "axios": "^1.3.4",
