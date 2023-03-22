@@ -1,18 +1,15 @@
 const functions = require('@google-cloud/functions-framework');
 const createClient = require('@supabase/supabase-js').createClient;
-const { EC2Client, StartInstancesCommand, DescribeInstanceStatusCommand } = require("@aws-sdk/client-ec2");
+const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+// const { EC2Client, StartInstancesCommand, DescribeInstanceStatusCommand } = require("@aws-sdk/client-ec2");
 
 const axios = require('axios');
 
 functions.http('sdrequest', async (req, res) => {
   console.log(`🪵:sdrequest:${JSON.stringify(req.body)}`)
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
-  const ec2Client = new EC2Client({ region: "us-east-1" });
-  const { id, endpoint, sd_model_checkpoint, params } = req.body
-
-  // endpoint
-  // bring up the inference machine
-
+  const s3Client = new S3Client({ region: "us-east-1" });
+  const { id, userId, endpoint, sd_model_checkpoint, params } = req.body
   try {
     // const inferenceInstanceId = 'i-0586907b3f7ee3d10'
     // let instanceStartCalled = false
@@ -87,23 +84,37 @@ functions.http('sdrequest', async (req, res) => {
     console.log('🔴🔴🔴🔴🔴', Object.keys(response.data))
     const { images, parameters, info } = response.data
     console.log(id)
+    console.log(typeof images)
+    console.log(images.length)
+    if (images.length > 0) {
+      const response = await s3Client.send(new PutObjectCommand({
+        Bucket: "a1-generated",
+        Key: `${userId}/${id}.png`,
+        Body: Buffer.from(images[0], 'base64'),
+        ContentType: 'image/png'
+      }))
+      console.log('🔴🔴aws s3 response🔴🔴', JSON.stringify(response))
+    }
+    if (response.metadata.httpStatusCode !== 200) {
+      throw new Error('S3 upload failed')
+    }
     let { error } = await supabase
       .from('a1_request')
-      .upsert({
+      .update({
         id,
         status: 'completed',
         inferenceParameters: parameters,
         inferenceInfo: info,
-        resultData: images,
+        // resultData: images,
         updatedAt: new Date()
       })
-      .select()
-    // .eq('id', id)
+      .eq('id', id)
+
     if (error) { throw error }
     res.status(200).send({ message: 'success' });
   } catch (error) {
     //return an error
-    console.log("got error: ", error);
+    console.error("got error: ", error);
     res.status(500).send(error);
   }
 });
