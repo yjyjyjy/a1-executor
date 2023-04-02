@@ -77,7 +77,7 @@ functions.http('a1execprod', async (req, res) => {
       inferenceInfo: info,
     });
   } catch (error) {
-    await supabase
+    supabase
       .from('a1_request')
       .update({
         id,
@@ -85,6 +85,7 @@ functions.http('a1execprod', async (req, res) => {
         updatedAt: new Date()
       })
       .eq('id', id)
+    axios.post(`https://a1111.app/api/log`, { service: 'a1-executorprod', requestId: id, error: error.message })
     console.error("got error: ", error);
     res.status(500).send(error);
   }
