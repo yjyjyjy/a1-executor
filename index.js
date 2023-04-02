@@ -63,6 +63,10 @@ functions.http('a1execprod', async (req, res) => {
       .eq('id', id)
     if (error) { throw error }
     console.log('✅', 'image gen success')
+
+    // call moderation
+    axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
+
     res.status(200).send({
       requestId: id,
       endpoint,
