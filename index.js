@@ -8,6 +8,9 @@ functions.http('a1execprod', async (req, res) => {
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   const s3Client = new S3Client({ region: "us-east-1" });
   const { id, endpoint, sd_model_checkpoint, params } = req.body
+  axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
+    { id, event: 'executorStarted', ts: new Date() }
+  )
   try {
     const entryPointUrl = 'http://Platf-ecs00-Y9KFXQP2BFXS-18468705.us-east-1.elb.amazonaws.com'
     const updateOption = async () => {
@@ -34,10 +37,16 @@ functions.http('a1execprod', async (req, res) => {
     await updateOption()
     let endTime = new Date()
     const timeSpentChangeModel = endTime - startTime
+    axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
+      { id, event: 'executorOptionUpdated', ts: new Date() }
+    )
     const url = `${entryPointUrl}${endpoint}` // endpoint: `/sdapi/v1/txt2img`,
     console.log('url: ', url)
     const response = await axios.post(url, params)
     console.log('🪵', 'Object.keys(response.data)', Object.keys(response.data))
+    axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
+      { id, event: 'executorInferenceResponseReceived', ts: new Date() }
+    )
     const { images, parameters, info } = response.data
     if (images.length > 0) {
       const response = await s3Client.send(new PutObjectCommand({
@@ -50,6 +59,9 @@ functions.http('a1execprod', async (req, res) => {
         throw new Error('S3 upload failed')
       }
       console.log('🪵', 'S3 upload success')
+      axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
+        { id, event: 'executorS3Updated', ts: new Date() }
+      )
     }
     let { error } = await supabase
       .from('a1_request')
@@ -65,6 +77,9 @@ functions.http('a1execprod', async (req, res) => {
       .eq('id', id)
     if (error) { throw error }
     console.log('✅', 'image gen success')
+    axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
+      { id, event: 'executorRequestSupabaseUpdated', ts: new Date() }
+    )
     // call moderation
     axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
 
