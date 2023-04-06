@@ -1,8 +1,6 @@
 const functions = require('@google-cloud/functions-framework');
 const createClient = require('@supabase/supabase-js').createClient;
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
-// const { EC2Client, StartInstancesCommand, DescribeInstanceStatusCommand } = require("@aws-sdk/client-ec2");
-
 const axios = require('axios');
 
 functions.http('a1execprod', async (req, res) => {
@@ -11,33 +9,36 @@ functions.http('a1execprod', async (req, res) => {
   const s3Client = new S3Client({ region: "us-east-1" });
   const { id, endpoint, sd_model_checkpoint, params } = req.body
   try {
-    // const instanceIp = '44.204.101.147'
-    const entryPointUrl = 'http://a1-loadbalancer-1850067276.us-east-1.elb.amazonaws.com'
-
+    const entryPointUrl = 'http://Platf-ecs00-Y9KFXQP2BFXS-18468705.us-east-1.elb.amazonaws.com'
     const updateOption = async () => {
-      // const configApiUrl = `http://${instanceIp}:7860/sdapi/v1/options`
       const configApiUrl = `${entryPointUrl}/sdapi/v1/options`
       console.log('configApiUrl: ', configApiUrl)
-      const resp = await axios.post(
-        configApiUrl,
-        { sd_model_checkpoint },
-        { headers: { 'Content-Type': 'application/json' } }
-      )
-      console.log(`🪵:a1execprod:updateOption:${resp.status}`)
-      if (resp.status !== 200) {
-        throw new Error('inference node is down')
+      try {
+        await axios.post(
+          configApiUrl,
+          { sd_model_checkpoint },
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      } catch (error) {
+        console.log('🔴', 'updateOption error', error.message)
+        supabase.from('request_logs').insert({
+          id: id,
+          event: 'executorOptionUpdateFailed',
+          ts: new Date(),
+          data: { error: error.message }
+        })
+        throw error
       }
     }
+    let startTime = new Date()
     await updateOption()
-
+    let endTime = new Date()
+    const timeSpentChangeModel = endTime - startTime
     const url = `${entryPointUrl}${endpoint}` // endpoint: `/sdapi/v1/txt2img`,
     console.log('url: ', url)
     const response = await axios.post(url, params)
     console.log('🪵', 'Object.keys(response.data)', Object.keys(response.data))
     const { images, parameters, info } = response.data
-    console.log(id)
-    console.log(typeof images)
-    console.log(images.length)
     if (images.length > 0) {
       const response = await s3Client.send(new PutObjectCommand({
         Bucket: "a1-generated",
@@ -58,12 +59,12 @@ functions.http('a1execprod', async (req, res) => {
         inferenceParameters: parameters,
         inferenceInfo: info,
         // resultData: images,
-        updatedAt: new Date()
+        completedAt: new Date(),
+        timeSpentChangeModel
       })
       .eq('id', id)
     if (error) { throw error }
     console.log('✅', 'image gen success')
-
     // call moderation
     axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
 
@@ -77,7 +78,7 @@ functions.http('a1execprod', async (req, res) => {
       inferenceInfo: info,
     });
   } catch (error) {
-    supabase
+    await supabase
       .from('a1_request')
       .update({
         id,
@@ -85,10 +86,13 @@ functions.http('a1execprod', async (req, res) => {
         updatedAt: new Date()
       })
       .eq('id', id)
-    axios.post(`https://a1111.app/api/log`, { service: 'a1-executorprod', requestId: id, error: error.message })
-    console.error("got error: ", error);
+    await supabase.from('request_logs').insert({
+      id: id,
+      event: 'executorError',
+      ts: new Date(),
+      data: { error: error.message }
+    })
+    console.error('🔴', "got error: ", error);
     res.status(500).send(error);
   }
 });
-
-
