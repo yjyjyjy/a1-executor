@@ -5,8 +5,8 @@ const axios = require('axios');
 // const { uuid } = require('uuidv4');
 const { v4: uuid } = require('uuid');
 
-functions.http('a1execprod', async (req, res) => {
-  console.log(`🪵:a1execprod:${JSON.stringify(req.body)}`)
+functions.http('a1execprodv2', async (req, res) => {
+  console.log(`🪵:a1execprodv2:${JSON.stringify(req.body)}`)
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   const s3Client = new S3Client({ region: "us-east-1" });
   const { id, endpoint, sd_model_checkpoint, params } = req.body
@@ -47,6 +47,7 @@ functions.http('a1execprod', async (req, res) => {
     const imgIds = images.map((image, index) => `${uuid()}`)
     if (images.length > 0) {
       const promiseArr = images.map((image, index) => {
+        console.log(imgIds[index])
         return s3Client.send(new PutObjectCommand({
           Bucket: "a1-generated",
           Key: `generated/${imgIds[index]}.png`,
@@ -56,6 +57,7 @@ functions.http('a1execprod', async (req, res) => {
       })
       const responses = await Promise.all(promiseArr)
       for (let response of responses) {
+        console.log(response.$metadata.httpStatusCode)
         if (response.$metadata.httpStatusCode !== 200) {
           throw new Error('S3 upload failed')
         }
@@ -74,7 +76,7 @@ functions.http('a1execprod', async (req, res) => {
         completedAt: new Date(),
       })
       .eq('id', id)
-    const { data, error } = await supabase
+    await supabase
       .from('image')
       .insert(imgIds.map((imgId) => ({
         id: imgId,
@@ -82,7 +84,6 @@ functions.http('a1execprod', async (req, res) => {
         createdAt: new Date(),
         requestParams: params
       })))
-    console.log(error)
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
     // 🌳🔴 call moderation
@@ -90,7 +91,7 @@ functions.http('a1execprod', async (req, res) => {
     // axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
 
     // 🌳 return response (not used except for debugging)
-    res.status(200).send({
+    res.send({
       requestId: id,
       endpoint,
       sd_model_checkpoint,

@@ -1,15 +1,15 @@
 {
-  "name": "a1execprod",
+  "name": "a1execprodv2",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "env-cmd -r ./.env.json functions-framework --target=a1execprod",
-    "debug": "env-cmd -r ./.env.json node --inspect node_modules/.bin/functions-framework --target=a1execprod",
-    "deploy": "gcloud functions deploy a1execprod --gen2 --region=us-east1 --trigger-http --runtime nodejs18 --allow-unauthenticated --env-vars-file .env.yaml",
-    "tail": "gcloud beta run services logs tail a1execprod --project a1111-381006 --region=us-east1",
-    "log": "gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=a1execprod\" --project a1111-381006 --limit 10"
+    "start": "env-cmd -r ./.env.json functions-framework --target=a1execprodv2",
+    "debug": "env-cmd -r ./.env.json node --inspect node_modules/.bin/functions-framework --target=a1execprodv2",
+    "deploy": "gcloud functions deploy a1execprodv2 --gen2 --region=us-east1 --trigger-http --runtime nodejs18 --allow-unauthenticated --env-vars-file .env.yaml",
+    "tail": "gcloud beta run services logs tail a1execprodv2 --project a1111-381006 --region=us-east1",
+    "log": "gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=a1execprodv2\" --project a1111-381006 --limit 10"
   },
   "author": "",
   "license": "ISC",
