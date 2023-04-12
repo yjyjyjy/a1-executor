@@ -2,6 +2,8 @@ const functions = require('@google-cloud/functions-framework');
 const createClient = require('@supabase/supabase-js').createClient;
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const axios = require('axios');
+// const { uuid } = require('uuidv4');
+const { v4: uuid } = require('uuid');
 
 functions.http('a1execprod', async (req, res) => {
   console.log(`🪵:a1execprod:${JSON.stringify(req.body)}`)
@@ -33,48 +35,61 @@ functions.http('a1execprod', async (req, res) => {
         throw error
       }
     }
-    let startTime = new Date()
     await updateOption()
-    let endTime = new Date()
-    const timeSpentChangeModel = endTime - startTime
     log_event({ event: 'executorOptionUpdated' })
     // 🌳 send request to worker
     const url = `${entryPointUrl}${endpoint}` // endpoint: `/sdapi/v1/txt2img`,
     const response = await axios.post(url, params)
     console.log('🪵', 'Object.keys(response.data)', Object.keys(response.data))
     log_event({ event: 'executorInferenceResponseReceived' })
+    // 🌳 parse response and store image to S3
     const { images, parameters, info } = response.data
+    const imgIds = images.map((image, index) => `${uuid()}`)
     if (images.length > 0) {
-      const response = await s3Client.send(new PutObjectCommand({
-        Bucket: "a1-generated",
-        Key: `generated/${id}.png`,
-        Body: Buffer.from(images[0], 'base64'),
-        ContentType: 'image/png'
-      }))
-      if (response.$metadata.httpStatusCode !== 200) {
-        throw new Error('S3 upload failed')
+      const promiseArr = images.map((image, index) => {
+        return s3Client.send(new PutObjectCommand({
+          Bucket: "a1-generated",
+          Key: `generated/${imgIds[index]}.png`,
+          Body: Buffer.from(image, 'base64'),
+          ContentType: 'image/png'
+        }))
+      })
+      const responses = await Promise.all(promiseArr)
+      for (let response of responses) {
+        if (response.$metadata.httpStatusCode !== 200) {
+          throw new Error('S3 upload failed')
+        }
       }
       console.log('🪵', 'S3 upload success')
       log_event({ event: 'executorS3Updated' })
     }
-    let { error } = await supabase
+    // 🌳 update supabase
+    await supabase
       .from('a1_request')
       .update({
         id,
         status: 'success',
         inferenceParameters: parameters,
         inferenceInfo: info,
-        // resultData: images,
         completedAt: new Date(),
-        timeSpentChangeModel
       })
       .eq('id', id)
-    if (error) { throw error }
+    const { data, error } = await supabase
+      .from('image')
+      .insert(imgIds.map((imgId) => ({
+        id: imgId,
+        requestId: id,
+        createdAt: new Date(),
+        requestParams: params
+      })))
+    console.log(error)
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
-    // call moderation
-    axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
+    // 🌳🔴 call moderation
 
+    // axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
+
+    // 🌳 return response (not used except for debugging)
     res.status(200).send({
       requestId: id,
       endpoint,
