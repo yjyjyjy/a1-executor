@@ -8,11 +8,16 @@ functions.http('a1execprod', async (req, res) => {
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   const s3Client = new S3Client({ region: "us-east-1" });
   const { id, endpoint, sd_model_checkpoint, params } = req.body
-  axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
-    { id, event: 'executorStarted', ts: new Date() }
-  )
+  const log_event = ({ event, data }) => {
+    axios.post('https://a1execprodlogs-ake5r4huta-ue.a.run.app', { id, event, ts: new Date(), data })
+  }
+  log_event({ event: 'executorStarted' })
   try {
-    const entryPointUrl = 'http://Platf-ecs00-Y9KFXQP2BFXS-18468705.us-east-1.elb.amazonaws.com'
+    // 🌳 update option (model) to worker load balancer
+    // const entryPointUrl = 'http://Platf-ecs00-Y9KFXQP2BFXS-18468705.us-east-1.elb.amazonaws.com'
+    const entryPointUrl = sd_model_checkpoint === 'lofi_V2pre'
+      ? 'http://lofi-loadbalancer-2039171330.us-east-1.elb.amazonaws.com'
+      : 'http://a1-loadbalancer-1850067276.us-east-1.elb.amazonaws.com'
     const updateOption = async () => {
       const configApiUrl = `${entryPointUrl}/sdapi/v1/options`
       console.log('configApiUrl: ', configApiUrl)
@@ -24,12 +29,7 @@ functions.http('a1execprod', async (req, res) => {
         )
       } catch (error) {
         console.log('🔴', 'updateOption error', error.message)
-        supabase.from('request_logs').insert({
-          id: id,
-          event: 'executorOptionUpdateFailed',
-          ts: new Date(),
-          data: { error: error.message }
-        })
+        log_event({ event: 'executorOptionUpdateFailed', data: error.message })
         throw error
       }
     }
@@ -37,16 +37,12 @@ functions.http('a1execprod', async (req, res) => {
     await updateOption()
     let endTime = new Date()
     const timeSpentChangeModel = endTime - startTime
-    axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
-      { id, event: 'executorOptionUpdated', ts: new Date() }
-    )
+    log_event({ event: 'executorOptionUpdated' })
+    // 🌳 send request to worker
     const url = `${entryPointUrl}${endpoint}` // endpoint: `/sdapi/v1/txt2img`,
-    console.log('url: ', url)
     const response = await axios.post(url, params)
     console.log('🪵', 'Object.keys(response.data)', Object.keys(response.data))
-    axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
-      { id, event: 'executorInferenceResponseReceived', ts: new Date() }
-    )
+    log_event({ event: 'executorInferenceResponseReceived' })
     const { images, parameters, info } = response.data
     if (images.length > 0) {
       const response = await s3Client.send(new PutObjectCommand({
@@ -59,9 +55,7 @@ functions.http('a1execprod', async (req, res) => {
         throw new Error('S3 upload failed')
       }
       console.log('🪵', 'S3 upload success')
-      axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
-        { id, event: 'executorS3Updated', ts: new Date() }
-      )
+      log_event({ event: 'executorS3Updated' })
     }
     let { error } = await supabase
       .from('a1_request')
@@ -77,9 +71,7 @@ functions.http('a1execprod', async (req, res) => {
       .eq('id', id)
     if (error) { throw error }
     console.log('✅', 'image gen success')
-    axios.post(`https://a1execprodlogs-ake5r4huta-ue.a.run.app`,
-      { id, event: 'executorRequestSupabaseUpdated', ts: new Date() }
-    )
+    log_event({ event: 'executorRequestSupabaseUpdated' })
     // call moderation
     axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
 
@@ -101,12 +93,7 @@ functions.http('a1execprod', async (req, res) => {
         updatedAt: new Date()
       })
       .eq('id', id)
-    await supabase.from('request_logs').insert({
-      id: id,
-      event: 'executorError',
-      ts: new Date(),
-      data: { error: error.message }
-    })
+    log_event({ event: 'executorError', data: error.message })
     console.error('🔴', "got error: ", error);
     res.status(500).send(error);
   }
