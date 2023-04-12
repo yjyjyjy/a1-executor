@@ -9,7 +9,7 @@ functions.http('a1execprodv2', async (req, res) => {
   console.log(`🪵:a1execprodv2:${JSON.stringify(req.body)}`)
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   const s3Client = new S3Client({ region: "us-east-1" });
-  const { id, endpoint, sd_model_checkpoint, params } = req.body
+  const { id, userId, model, endpoint, sd_model_checkpoint, params } = req.body
   const log_event = ({ event, data }) => {
     axios.post('https://a1execprodlogs-ake5r4huta-ue.a.run.app', { id, event, ts: new Date(), data })
   }
@@ -81,6 +81,8 @@ functions.http('a1execprodv2', async (req, res) => {
       .insert(imgIds.map((imgId) => ({
         id: imgId,
         requestId: id,
+        userId,
+        model,
         createdAt: new Date(),
         requestParams: params
       })))
@@ -96,6 +98,8 @@ functions.http('a1execprodv2', async (req, res) => {
       endpoint,
       sd_model_checkpoint,
       params,
+      userId,
+      model,
       status: 'success',
       inferenceParameters: parameters,
       inferenceInfo: info,
