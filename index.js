@@ -88,9 +88,10 @@ functions.http('a1execprodv2', async (req, res) => {
       })))
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
-    // 🌳🔴 call moderation
-
-    // axios.post(`https://a1moderation-ake5r4huta-ue.a.run.app`, { id })
+    // 🌳 call moderation
+    for (let imgId of imgIds) {
+      axios.post(`https://a1moderatorv2-ake5r4huta-ue.a.run.app`, { id: imgId, requestParams: params, sd_model_checkpoint })
+    }
 
     // 🌳 return response (not used except for debugging)
     res.send({
