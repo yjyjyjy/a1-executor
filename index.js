@@ -44,6 +44,7 @@ functions.http('a1execprodv2', async (req, res) => {
     log_event({ event: 'executorInferenceResponseReceived' })
     // 🌳 parse response and store image to S3
     const { images, parameters, info } = response.data
+    const parsedInfo = JSON.parse(info)
     const imgIds = images.map((image, index) => `${uuid()}`)
     if (images.length > 0) {
       const promiseArr = images.map((image, index) => {
@@ -84,7 +85,8 @@ functions.http('a1execprodv2', async (req, res) => {
         userId,
         model,
         createdAt: new Date(),
-        requestParams: params
+        requestParams: params,
+        seed: parsedInfo.seed,
       })))
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
