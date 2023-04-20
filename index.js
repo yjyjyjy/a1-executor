@@ -83,6 +83,16 @@ functions.http('a1execprodv2', async (req, res) => {
       console.log('🪵', 'S3 upload success')
       log_event({ event: 'executorS3Updated' })
     }
+    // update redis tokenGrantBalance
+    const grantBalance = await redis.get(`grantBalance:${userId}`)
+    let grant
+    const tokenCost = images.length * 2
+    if (grantBalance) {
+      grant = grantBalance.filter(g => (new Date(g.expiresAt) > new Date() && g.amount > 0)).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
+      await redis.set(`grantBalance:${userId}`,
+        grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - tokenCost } : g) // deduct balance
+      )
+    }
     // 🌳 update supabase
     await supabase
       .from('a1_request')
@@ -104,16 +114,10 @@ functions.http('a1execprodv2', async (req, res) => {
         createdAt: new Date(),
         requestParams: params,
         seed: parsedInfo.seed,
+        tokenGrantId: grant ? grant.id : null,
+        tokenCost
       })))
-    // update redis tokenGrantBalance
-    const grantBalance = await redis.get(`grantBalance:${userId}`)
-    if (grantBalance) {
-      const charge = images.length * 2
-      const grant = grantBalance.filter(g => (new Date(g.expiresAt) > new Date() && g.amount > 0)).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
-      await redis.set(`grantBalance:${userId}`,
-        grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - charge } : g) // deduct balance
-      )
-    }
+
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
     // 🌳 call moderation
