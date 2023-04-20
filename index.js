@@ -2,13 +2,19 @@ const functions = require('@google-cloud/functions-framework');
 const createClient = require('@supabase/supabase-js').createClient;
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const axios = require('axios');
-// const { uuid } = require('uuidv4');
+// const Redis = require("ioredis");
 const { v4: uuid } = require('uuid');
+const Redis = require("@upstash/redis")
 
 functions.http('a1execprodv2', async (req, res) => {
   console.log(`🪵:a1execprodv2:${JSON.stringify(req.body)}`)
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   const s3Client = new S3Client({ region: "us-east-1" });
+  // let redisClient = new Redis(process.env.REDIS_CONNECTION_URL)
+  const redis = new Redis.Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  })
   const { id, userId, model, endpoint, sd_model_checkpoint, params } = req.body
   const log_event = ({ event, data }) => {
     axios.post('https://a1execprodlogs-ake5r4huta-ue.a.run.app', { id, event, ts: new Date(), data })
@@ -16,10 +22,21 @@ functions.http('a1execprodv2', async (req, res) => {
   log_event({ event: 'executorStarted' })
   try {
     // 🌳 update option (model) to worker load balancer
-    // const entryPointUrl = 'http://Platf-ecs00-Y9KFXQP2BFXS-18468705.us-east-1.elb.amazonaws.com'
-    const entryPointUrl = sd_model_checkpoint === 'lofi_V2pre'
-      ? 'http://lofi-loadbalancer-2039171330.us-east-1.elb.amazonaws.com'
-      : 'http://a1-loadbalancer-1850067276.us-east-1.elb.amazonaws.com'
+    let entryPointUrl
+    switch (sd_model_checkpoint) {
+      case 'lofi_V2pre':
+        entryPointUrl = 'http://lofi-loadbalancer-2039171330.us-east-1.elb.amazonaws.com'
+        break
+      case 'rpg_V4':
+        entryPointUrl = 'http://rpg-loadbalancer-183494936.us-east-1.elb.amazonaws.com'
+        break
+      case 'meinamix_meinaV8':
+        entryPointUrl = 'http://waifu-loadBalancer-82144410.us-east-1.elb.amazonaws.com'
+        break
+      case 'deliberate_v2':
+        entryPointUrl = 'http://deliberate-loadBalancer-269090339.us-east-1.elb.amazonaws.com'
+        break
+    }
     const updateOption = async () => {
       const configApiUrl = `${entryPointUrl}/sdapi/v1/options`
       console.log('configApiUrl: ', configApiUrl)
@@ -88,6 +105,15 @@ functions.http('a1execprodv2', async (req, res) => {
         requestParams: params,
         seed: parsedInfo.seed,
       })))
+    // update redis tokenGrantBalance
+    // const grantBalance = JSON.parse(await redisClient.get(`grantBalance:${userId}`))
+    const grantBalance = await redis.get(`grantBalance:${userId}`)
+    console.log('grantBalance', typeof grantBalance)
+    const grant = grantBalance.filter(g => new Date(g.expiresAt) > new Date()).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
+    await redis.set(`grantBalance:${userId}`,
+      grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - images.length } : g) // deduct balance
+    )
+
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
     // 🌳 call moderation
