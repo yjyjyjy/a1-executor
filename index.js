@@ -106,14 +106,14 @@ functions.http('a1execprodv2', async (req, res) => {
         seed: parsedInfo.seed,
       })))
     // update redis tokenGrantBalance
-    // const grantBalance = JSON.parse(await redisClient.get(`grantBalance:${userId}`))
     const grantBalance = await redis.get(`grantBalance:${userId}`)
-    console.log('grantBalance', typeof grantBalance)
-    const grant = grantBalance.filter(g => new Date(g.expiresAt) > new Date()).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
-    await redis.set(`grantBalance:${userId}`,
-      grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - images.length } : g) // deduct balance
-    )
-
+    if (grantBalance) {
+      console.log('grantBalance', typeof grantBalance)
+      const grant = grantBalance.filter(g => new Date(g.expiresAt) > new Date()).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
+      await redis.set(`grantBalance:${userId}`,
+        grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - images.length * 2 } : g) // deduct balance
+      )
+    }
     console.log('✅', 'image gen success')
     log_event({ event: 'executorRequestSupabaseUpdated' })
     // 🌳 call moderation
