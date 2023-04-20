@@ -108,10 +108,10 @@ functions.http('a1execprodv2', async (req, res) => {
     // update redis tokenGrantBalance
     const grantBalance = await redis.get(`grantBalance:${userId}`)
     if (grantBalance) {
-      console.log('grantBalance', typeof grantBalance)
-      const grant = grantBalance.filter(g => new Date(g.expiresAt) > new Date()).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
+      const charge = images.length * 2
+      const grant = grantBalance.filter(g => (new Date(g.expiresAt) > new Date() && g.amount > 0)).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
       await redis.set(`grantBalance:${userId}`,
-        grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - images.length * 2 } : g) // deduct balance
+        grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - charge } : g) // deduct balance
       )
     }
     console.log('✅', 'image gen success')
