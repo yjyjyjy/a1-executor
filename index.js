@@ -110,6 +110,7 @@ functions.http('a1execprodv2', async (req, res) => {
       }
       await redis.set(`paidGrantBalance:${userId}`, tokenPaidGrantBalanceArray)
       if (remainingTokenCost > 0 && freeGrantUsage && Array.isArray(freeGrantUsage)) {
+        freeGrantUsage = freeGrantUsage.filter(usage => usage.epochTs > (new Date()).getTime() - 3600 * 1000)
         freeGrantUsage.push({ epochTs: new Date().getTime(), amount: remainingTokenCost })
         await redis.set(`freeGrantUsage:${userId}`, freeGrantUsage)
       }
