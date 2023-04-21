@@ -83,16 +83,38 @@ functions.http('a1execprodv2', async (req, res) => {
       console.log('🪵', 'S3 upload success')
       log_event({ event: 'executorS3Updated' })
     }
-    // update redis tokenGrantBalance
-    const grantBalance = await redis.get(`grantBalance:${userId}`)
-    let grant
-    const tokenCost = images.length * 2
-    if (grantBalance) {
-      grant = grantBalance.filter(g => (new Date(g.expiresAt) > new Date() && g.amount > 0)).sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0]
-      await redis.set(`grantBalance:${userId}`,
-        grantBalance.map(g => g.id === grant.id ? { ...g, amount: g.amount - tokenCost } : g) // deduct balance
-      )
+
+
+    // get GrantBalance from redis
+    let tokenPaidGrantBalanceArray = await redis.get(`paidGrantBalance:${userId}`)
+    let freeGrantUsage = await redis.get(`freeGrantUsage:${userId}`)
+    let grantToCharge
+    let tokenCost = images.length * 2
+    let remainingTokenCost = tokenCost
+
+    if (tokenPaidGrantBalanceArray && Array.isArray(tokenPaidGrantBalanceArray)) {
+      tokenPaidGrantBalanceArray = tokenPaidGrantBalanceArray.filter(grant => grant.expiresAt > (new Date()).toISOString())
+        .sort((a, b) => a.expiresAt > b.expiresAt ? 1 : -1)
+      grantToCharge = tokenPaidGrantBalanceArray[0]
+      for (let grant of tokenPaidGrantBalanceArray) {
+        if (grant.amount >= remainingTokenCost) {
+          grant.amount -= remainingTokenCost
+          remainingTokenCost = 0
+          tokenPaidGrantBalanceArray = [...tokenPaidGrantBalanceArray.filter(g => g.id !== grant.id), grant]
+          break
+        } else {
+          remainingTokenCost -= grant.amount
+          grant.amount = 0
+          tokenPaidGrantBalanceArray = [...tokenPaidGrantBalanceArray.filter(g => g.id !== grant.id), grant]
+        }
+      }
+      await redis.set(`paidGrantBalance:${userId}`, tokenPaidGrantBalanceArray)
+      if (remainingTokenCost > 0 && freeGrantUsage && Array.isArray(freeGrantUsage)) {
+        freeGrantUsage.push({ epochTs: new Date().getTime(), amount: remainingTokenCost })
+        await redis.set(`freeGrantUsage:${userId}`, freeGrantUsage)
+      }
     }
+
     // 🌳 update supabase
     await supabase
       .from('a1_request')
@@ -114,8 +136,8 @@ functions.http('a1execprodv2', async (req, res) => {
         createdAt: new Date(),
         requestParams: params,
         seed: parsedInfo.seed,
-        tokenGrantId: grant ? grant.id : null,
-        tokenCost
+        tokenGrantId: grantToCharge && grantToCharge.id,
+        tokenCost,
       })))
 
     console.log('✅', 'image gen success')
