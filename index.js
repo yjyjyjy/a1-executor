@@ -70,10 +70,11 @@ functions.http('a1execprodv2', async (req, res) => {
     //function 
     const watermarkImage = async (image, index) => {
       const img = await Jimp.read(Buffer.from(image, 'base64'));
-      const font = await Jimp.loadFont('font/Hx3EyQU_WCvbuhdoaA7aNABK.ttf.fnt');
-      let textImage = new Jimp(200, 40, '#FFFFFF');
-      textImage.print(font, 15, 5, "anydream.xyz")
-      img.blit(textImage, img.bitmap.width - 200, img.bitmap.height - 40)
+      const font = await Jimp.loadFont('font/PNggDaphvYDpyDJlKY1wLkD9.ttf.fnt');
+      let textImage = new Jimp(170, 40, '#FFFFFF');
+      textImage.print(font, 15, 5, "anydream.xyz");
+      textImage.color([{ apply: 'xor', params: ['#FFFFFF'] }]);
+      img.blit(textImage, img.bitmap.width - 170, img.bitmap.height - 40)
       // img.write(`out${index}.png`);
       const watermarkBase64 = await img.getBase64Async(img._originalMime);
       return { realImg: image, watermarkImg: watermarkBase64 };
@@ -86,13 +87,14 @@ functions.http('a1execprodv2', async (req, res) => {
     const parsedInfo = JSON.parse(info)
     const imgIds = results.map((result, index) => `${uuid()}`)
     if (images.length > 0) {
-      const promiseArr = results.map((image, index) => {
-        const { watermarkBase64 } = image; // Have both watermark image and normal image
+      const promiseArr = results.map(async (image, index) => {
+        const { watermarkImg } = image; // Have both watermark image and normal image
         console.log(imgIds[index])
+        let base64Data = watermarkImg.replace(/^data:image\/png;base64,/, "");
         return s3Client.send(new PutObjectCommand({
           Bucket: "a1-generated",
           Key: `generated/${imgIds[index]}.png`,
-          Body: Buffer.from(watermarkBase64, 'base64'),
+          Body: Buffer.from(base64Data, 'base64'),
           ContentType: 'image/png'
         }))
       })
