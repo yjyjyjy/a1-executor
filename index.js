@@ -5,6 +5,7 @@ const axios = require('axios');
 // const Redis = require("ioredis");
 const { v4: uuid } = require('uuid');
 const Redis = require("@upstash/redis")
+const Jimp = require('jimp');
 
 functions.http('a1execprodv2', async (req, res) => {
   console.log(`🪵:a1execprodv2:${JSON.stringify(req.body)}`)
@@ -61,15 +62,37 @@ functions.http('a1execprodv2', async (req, res) => {
     log_event({ event: 'executorInferenceResponseReceived' })
     // 🌳 parse response and store image to S3
     const { images, parameters, info } = response.data
+
+    /* Add two numbers and
+      Watermark image received from stable diffusion
+   */
+
+    //function 
+    const watermarkImage = async (image, index) => {
+      const img = await Jimp.read(Buffer.from(image, 'base64'));
+      const font = await Jimp.loadFont('font/Hx3EyQU_WCvbuhdoaA7aNABK.ttf.fnt');
+      let textImage = new Jimp(200, 40, '#FFFFFF');
+      textImage.print(font, 15, 5, "anydream.xyz")
+      img.blit(textImage, img.bitmap.width - 200, img.bitmap.height - 40)
+      // img.write(`out${index}.png`);
+      const watermarkBase64 = await img.getBase64Async(img._originalMime);
+      return { realImg: image, watermarkImg: watermarkBase64 };
+    }
+    // function end
+    const results = await Promise.all(images.map((img, index) => watermarkImage(img, index)));
+
+    // Watermark end 
+
     const parsedInfo = JSON.parse(info)
-    const imgIds = images.map((image, index) => `${uuid()}`)
+    const imgIds = results.map((result, index) => `${uuid()}`)
     if (images.length > 0) {
-      const promiseArr = images.map((image, index) => {
+      const promiseArr = results.map((image, index) => {
+        const { watermarkBase64 } = image; // Have both watermark image and normal image
         console.log(imgIds[index])
         return s3Client.send(new PutObjectCommand({
           Bucket: "a1-generated",
           Key: `generated/${imgIds[index]}.png`,
-          Body: Buffer.from(image, 'base64'),
+          Body: Buffer.from(watermarkBase64, 'base64'),
           ContentType: 'image/png'
         }))
       })
