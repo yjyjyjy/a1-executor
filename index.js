@@ -62,26 +62,23 @@ functions.http('a1execprodv2', async (req, res) => {
     log_event({ event: 'executorInferenceResponseReceived' })
     // 🌳 parse response and store image to S3
     const { images, parameters, info } = response.data
-
     /* Add two numbers and
       Watermark image received from stable diffusion
    */
-
     //function 
     const watermarkImage = async (image, index) => {
       const img = await Jimp.read(Buffer.from(image, 'base64'));
-      const font = await Jimp.loadFont('font/PNggDaphvYDpyDJlKY1wLkD9.ttf.fnt');
-      let textImage = new Jimp(170, 40, '#FFFFFF');
-      textImage.print(font, 15, 5, "anydream.xyz");
+      const font = await Jimp.loadFont('font/kWv9rCk2dPIXDhez8BSwUmTq.ttf.fnt');
+      let textImage = new Jimp(120, 20, '#FFFFFF');
+      textImage.print(font, 1, 0, "anydream.xyz");
       textImage.color([{ apply: 'xor', params: ['#FFFFFF'] }]);
-      img.blit(textImage, img.bitmap.width - 170, img.bitmap.height - 40)
+      img.blit(textImage, img.bitmap.width - 120, img.bitmap.height - 20)
       // img.write(`out${index}.png`);
       const watermarkBase64 = await img.getBase64Async(img._originalMime);
       return { realImg: image, watermarkImg: watermarkBase64 };
     }
     // function end
     const results = await Promise.all(images.map((img, index) => watermarkImage(img, index)));
-
     // Watermark end 
 
     const parsedInfo = JSON.parse(info)
