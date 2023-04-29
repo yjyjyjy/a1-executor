@@ -65,7 +65,7 @@ functions.http('a1execprodv2', async (req, res) => {
     /* Add two numbers and
       Watermark image received from stable diffusion
    */
-    //function 
+    //function
     const watermarkImage = async (image, index) => {
       const img = await Jimp.read(Buffer.from(image, 'base64'));
       const font = await Jimp.loadFont('font/kWv9rCk2dPIXDhez8BSwUmTq.ttf.fnt');
@@ -79,23 +79,33 @@ functions.http('a1execprodv2', async (req, res) => {
     }
     // function end
     const results = await Promise.all(images.map((img, index) => watermarkImage(img, index)));
-    // Watermark end 
+    // Watermark end
 
     const parsedInfo = JSON.parse(info)
     const imgIds = results.map((result, index) => `${uuid()}`)
     if (images.length > 0) {
-      const promiseArr = results.map(async (image, index) => {
+      // save watermarked image
+      const promiseArrWatermark = results.map(async (image, index) => {
         const { watermarkImg } = image; // Have both watermark image and normal image
         console.log(imgIds[index])
         let base64Data = watermarkImg.replace(/^data:image\/png;base64,/, "");
         return s3Client.send(new PutObjectCommand({
           Bucket: "a1-generated",
-          Key: `generated/${imgIds[index]}.png`,
+          Key: `watermarked/${imgIds[index]}.png`,
           Body: Buffer.from(base64Data, 'base64'),
           ContentType: 'image/png'
         }))
       })
-      const responses = await Promise.all(promiseArr)
+      // save original (for future training or premium users)
+      const promiseArrOriginal = images.map((image, index) => {
+        return s3Client.send(new PutObjectCommand({
+          Bucket: "a1-generated",
+          Key: `generated/${imgIds[index]}.png`,
+          Body: Buffer.from(image, 'base64'),
+          ContentType: 'image/png'
+        }))
+      })
+      const responses = await Promise.all([...promiseArrWatermark, ...promiseArrOriginal])
       for (let response of responses) {
         console.log(response.$metadata.httpStatusCode)
         if (response.$metadata.httpStatusCode !== 200) {
@@ -105,7 +115,6 @@ functions.http('a1execprodv2', async (req, res) => {
       console.log('🪵', 'S3 upload success')
       log_event({ event: 'executorS3Updated' })
     }
-
 
     // get GrantBalance from redis
     let tokenPaidGrantBalanceArray = await redis.get(`paidGrantBalance:${userId}`)
