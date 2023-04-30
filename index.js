@@ -85,8 +85,9 @@ functions.http('a1execprodv2', async (req, res) => {
     const imgIds = results.map((result, index) => `${uuid()}`)
     if (images.length > 0) {
       // save watermarked image
-      const promiseArrWatermark = results.map(async (image, index) => {
+      const promiseArrWatermark = results.map((image, index) => {
         const { watermarkImg } = image; // Have both watermark image and normal image
+        console.log('watermark')
         console.log(imgIds[index])
         let base64Data = watermarkImg.replace(/^data:image\/png;base64,/, "");
         return s3Client.send(new PutObjectCommand({
@@ -98,6 +99,8 @@ functions.http('a1execprodv2', async (req, res) => {
       })
       // save original (for future training or premium users)
       const promiseArrOriginal = images.map((image, index) => {
+        console.log('original')
+        console.log(imgIds[index])
         return s3Client.send(new PutObjectCommand({
           Bucket: "a1-generated",
           Key: `generated/${imgIds[index]}.png`,
