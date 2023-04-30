@@ -68,11 +68,11 @@ functions.http('a1execprodv2', async (req, res) => {
     //function
     const watermarkImage = async (image, index) => {
       const img = await Jimp.read(Buffer.from(image, 'base64'));
-      const font = await Jimp.loadFont('font/kWv9rCk2dPIXDhez8BSwUmTq.ttf.fnt');
-      let textImage = new Jimp(120, 20, '#FFFFFF');
+      const font = await Jimp.loadFont('font/K3B16nsnVT8_H8GuelL64TwZ.ttf.fnt');
+      let textImage = new Jimp(140, 30, '#FFFFFF');
       textImage.print(font, 1, 0, "anydream.xyz");
       textImage.color([{ apply: 'xor', params: ['#FFFFFF'] }]);
-      img.blit(textImage, img.bitmap.width - 120, img.bitmap.height - 20)
+      img.blit(textImage, img.bitmap.width - 140, img.bitmap.height - 30)
       // img.write(`out${index}.png`);
       const watermarkBase64 = await img.getBase64Async(img._originalMime);
       return { realImg: image, watermarkImg: watermarkBase64 };
