@@ -1,6 +1,6 @@
 const functions = require('@google-cloud/functions-framework');
 const createClient = require('@supabase/supabase-js').createClient;
-const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const { PutObjectCommand, GetObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const axios = require('axios');
 // const Redis = require("ioredis");
 const { v4: uuid } = require('uuid');
@@ -16,7 +16,8 @@ functions.http('a1execprodv2', async (req, res) => {
     url: process.env.UPSTASH_REDIS_REST_URL,
     token: process.env.UPSTASH_REDIS_REST_TOKEN,
   })
-  const { id, userId, model, endpoint, sd_model_checkpoint, params } = req.body
+  const { id, userId, model, endpoint, sd_model_checkpoint } = req.body
+  let { params } = req.body;
   const log_event = ({ event, data }) => {
     axios.post('https://a1execprodlogs-ake5r4huta-ue.a.run.app', { id, event, ts: new Date(), data })
   }
@@ -57,6 +58,25 @@ functions.http('a1execprodv2', async (req, res) => {
     log_event({ event: 'executorOptionUpdated' })
     // 🌳 send request to worker
     const url = `${entryPointUrl}${endpoint}` // endpoint: `/sdapi/v1/txt2img`,
+    if (endpoint.includes('img2img')) {
+      const [imgId] = params.init_images;
+      const command = new GetObjectCommand({
+        Bucket: 'a1-generated',
+        Key: `generated/${imgId}.png`,
+      });
+
+      try {
+        const response = await s3Client.send(command);
+        const imgStr = await response.Body.transformToString("base64");
+        params = {
+          ...params,
+          init_images: [imgStr.replace(/^data:image\/png;base64,/, "")]
+        }
+      } catch (err) {
+        console.log(err);
+        throw new Error("Error while geting image form s3 for img2img endpint!")
+      }
+    }
     const response = await axios.post(url, params)
     console.log('🪵', 'Object.keys(response.data)', Object.keys(response.data))
     log_event({ event: 'executorInferenceResponseReceived' })
