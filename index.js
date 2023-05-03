@@ -70,6 +70,8 @@ functions.http('a1execprodv2', async (req, res) => {
         const imgStr = await response.Body.transformToString("base64");
         params = {
           ...params,
+          inpaint_full_res: false,
+          inpaint_full_res_padding: 80,
           init_images: [imgStr.replace(/^data:image\/png;base64,/, "")]
         }
       } catch (err) {
