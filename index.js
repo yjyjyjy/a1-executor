@@ -59,7 +59,7 @@ functions.http('a1execprodv2', async (req, res) => {
     // 🌳 send request to worker
     const url = `${entryPointUrl}${endpoint}` // endpoint: `/sdapi/v1/txt2img`,
     if (endpoint.includes('img2img')) {
-      const [imgId] = params.init_images;
+      const imgId = params.init_images[0];
       const command = new GetObjectCommand({
         Bucket: 'a1-generated',
         Key: `generated/${imgId}.png`,
@@ -70,8 +70,6 @@ functions.http('a1execprodv2', async (req, res) => {
         const imgStr = await response.Body.transformToString("base64");
         params = {
           ...params,
-          inpaint_full_res: false,
-          inpaint_full_res_padding: 80,
           init_images: [imgStr.replace(/^data:image\/png;base64,/, "")]
         }
       } catch (err) {
@@ -183,6 +181,14 @@ functions.http('a1execprodv2', async (req, res) => {
         completedAt: new Date(),
       })
       .eq('id', id)
+
+    // this is the params to store in supabase
+    let requestParams = { ...params }
+    delete requestParams.init_images
+    delete requestParams.mask
+    delete requestParams.inpaint_full_res
+    delete requestParams.inpaint_full_res_padding
+
     await supabase
       .from('image')
       .insert(imgIds.map((imgId) => ({
@@ -191,7 +197,7 @@ functions.http('a1execprodv2', async (req, res) => {
         userId,
         model,
         createdAt: new Date(),
-        requestParams: params,
+        requestParams,
         seed: parsedInfo.seed,
         tokenGrantId: grantToCharge && grantToCharge.id,
         tokenCost,
@@ -209,7 +215,7 @@ functions.http('a1execprodv2', async (req, res) => {
       requestId: id,
       endpoint,
       sd_model_checkpoint,
-      params,
+      requestParams,
       userId,
       model,
       status: 'success',
