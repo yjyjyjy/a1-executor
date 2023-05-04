@@ -2,16 +2,17 @@ const functions = require('@google-cloud/functions-framework');
 const createClient = require('@supabase/supabase-js').createClient;
 const { PutObjectCommand, GetObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const axios = require('axios');
-// const Redis = require("ioredis");
 const { v4: uuid } = require('uuid');
 const Redis = require("@upstash/redis")
 const Jimp = require('jimp');
 
 functions.http('a1execprodv2', async (req, res) => {
   console.log(`🪵:a1execprodv2:${JSON.stringify(req.body)}`)
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
+  const supabaseAdmin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
   const s3Client = new S3Client({ region: "us-east-1" });
-  // let redisClient = new Redis(process.env.REDIS_CONNECTION_URL)
   const redis = new Redis.Redis({
     url: process.env.UPSTASH_REDIS_REST_URL,
     token: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -171,7 +172,7 @@ functions.http('a1execprodv2', async (req, res) => {
     }
 
     // 🌳 update supabase
-    await supabase
+    await supabaseAdmin
       .from('a1_request')
       .update({
         id,
@@ -189,7 +190,7 @@ functions.http('a1execprodv2', async (req, res) => {
     delete requestParams.inpaint_full_res
     delete requestParams.inpaint_full_res_padding
 
-    await supabase
+    await supabaseAdmin
       .from('image')
       .insert(imgIds.map((imgId) => ({
         id: imgId,
@@ -223,7 +224,7 @@ functions.http('a1execprodv2', async (req, res) => {
       inferenceInfo: info,
     });
   } catch (error) {
-    await supabase
+    await supabaseAdmin
       .from('a1_request')
       .update({
         id,
