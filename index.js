@@ -232,7 +232,7 @@ functions.http('a1execprodv2', async (req, res) => {
       })
       .eq('id', id)
     log_event({ event: 'executorError', data: error.message })
-    console.error('🔴', "got error: ", error);
+    console.error('🔴 got error: ', error);
     res.status(500).send(error);
   }
 });
