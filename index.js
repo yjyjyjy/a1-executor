@@ -176,7 +176,7 @@ functions.http('a1execprodv2', async (req, res) => {
     let tokenBal = await redis.get(`tokenBal:${userId}`)
     if (tokenBal && Array.isArray(tokenBal)) {
       console.log('tokenBal: ', JSON.stringify(tokenBal))
-      tokenBal = tokenBal.filter(grant => ((grant.expiresAt > new Date().getTime() || grant.type === 'free') && grant.amount > 0))
+      tokenBal = tokenBal.filter(grant => (grant.expiresAt > new Date().getTime() && grant.amount > 0) || grant.type === 'free')
       tokenBal.sort((a, b) => a.expiresAt > b.expiresAt ? 1 : -1)
       tokenBal = tokenBal.reduce((acc, grant) => {
         const amount = Math.min(grant.amount, remainingTokenCost)
