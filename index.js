@@ -182,7 +182,7 @@ functions.http('a1execprodv2', async (req, res) => {
         const amount = Math.min(grant.amount, remainingTokenCost)
         remainingTokenCost -= amount
         grant.amount -= amount
-        if (grant.type === 'free') {
+        if (grant.type === 'free' && amount > 0) {
           if (!grant.spend) { grant.spend = [] }
           grant.spend = [...grant.spend, { ts: new Date().getTime(), amount }]
         }
