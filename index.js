@@ -171,6 +171,25 @@ functions.http('a1execprodv2', async (req, res) => {
       }
     }
 
+    // token balance v2:
+    remainingTokenCost = tokenCost
+    let tokenBal = await redis.get(`tokenBal:${userId}`)
+    console.log('tokenBal: ', JSON.stringify(tokenBal))
+    tokenBal = tokenBal.filter(grant => grant.expiresAt > new Date().getTime() || grant.type === 'free')
+    tokenBal.sort((a, b) => a.expiresAt > b.expiresAt ? 1 : -1)
+    tokenBal = tokenBal.reduce((acc, grant) => {
+      const amount = Math.min(grant.amount, remainingTokenCost)
+      remainingTokenCost -= amount
+      grant.amount -= amount
+      if (grant.type === 'free') {
+        if (!grant.spend) { grant.spend = [] }
+        grant.spend = [...grant.spend, { ts: new Date().getTime(), amount }]
+      }
+      return grant.amount > 0 || grant.type === 'free' ? [...acc, grant] : acc
+    }, [])
+    console.log('tokenBal: ', JSON.stringify(tokenBal))
+    await redis.set(`tokenBal:${userId}`, tokenBal)
+
     // 🌳 update supabase
     await supabaseAdmin
       .from('a1_request')
