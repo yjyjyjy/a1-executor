@@ -31,8 +31,9 @@ functions.http('a1execprodv2', async (req, res) => {
     let tokenBalanceAmount = 0
     let tokenCost = params.batch_size * 2 || 2
     if (tokenBal && Array.isArray(tokenBal)) {
+      console.log('calculating token balance')
       tokenBalanceAmount = tokenBal.reduce((acc, grant) => {
-        if (grant.expiresAt > new Date().getTime() && grant.amount > 0) {
+        if ((grant.expiresAt > new Date().getTime() || grant.type === 'free') && grant.amount > 0) {
           acc += grant.amount
         }
         return acc
