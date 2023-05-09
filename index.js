@@ -27,6 +27,7 @@ functions.http('a1execprodv2', async (req, res) => {
 
     // 🌳 token balance gate keeper
     let tokenBal = await redis.get(`tokenBal:${userId}`)
+    console.log('11.tokenBal', tokenBal)
     let tokenBalanceAmount = 0
     let tokenCost = params.batch_size * 2 || 2
     if (tokenBal && Array.isArray(tokenBal)) {
@@ -37,7 +38,7 @@ functions.http('a1execprodv2', async (req, res) => {
         return acc
       }, 0)
     }
-    console.log('tokenBal: ', tokenBal)
+    console.log('22.tokenBal: ', tokenBal)
     console.log('tokenBalanceAmount: ', tokenBalanceAmount)
     console.log('tokenCost: ', tokenCost)
     if (!tokenBal || !Array.isArray(tokenBal) || tokenCost > tokenBalanceAmount) {
@@ -49,7 +50,7 @@ functions.http('a1execprodv2', async (req, res) => {
           completedAt: new Date(),
         })
         .eq('id', id)
-      res.status(500).send({ error: 'token_balance_error' });
+      throw new Error('token_balance_error')
     }
 
 
