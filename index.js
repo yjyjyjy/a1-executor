@@ -24,6 +24,35 @@ functions.http('a1execprodv2', async (req, res) => {
   }
   log_event({ event: 'executorStarted' })
   try {
+
+    // 🌳 token balance gate keeper
+    let tokenBal = await redis.get(`tokenBal:${userId}`)
+    let tokenBalanceAmount = 0
+    let tokenCost = params.batch_size * 2 || 2
+    if (tokenBal && Array.isArray(tokenBal)) {
+      tokenBalanceAmount = tokenBal.reduce((acc, grant) => {
+        if (grant.expiresAt > new Date().getTime() && grant.amount > 0) {
+          acc += grant.amount
+        }
+        return acc
+      }, 0)
+    }
+    console.log('tokenBal: ', tokenBal)
+    console.log('tokenBalanceAmount: ', tokenBalanceAmount)
+    console.log('tokenCost: ', tokenCost)
+    if (!tokenBal || !Array.isArray(tokenBal) || tokenCost > tokenBalanceAmount) {
+      await supabaseAdmin
+        .from('a1_request')
+        .update({
+          id,
+          status: 'token_balance_error',
+          completedAt: new Date(),
+        })
+        .eq('id', id)
+      res.status(500).send({ error: 'token_balance_error' });
+    }
+
+
     // 🌳 update option (model) to worker load balancer
     let entryPointUrl
     switch (sd_model_checkpoint) {
@@ -144,7 +173,6 @@ functions.http('a1execprodv2', async (req, res) => {
     let tokenPaidGrantBalanceArray = await redis.get(`paidGrantBalance:${userId}`)
     let freeGrantUsage = await redis.get(`freeGrantUsage:${userId}`)
     let grantToCharge
-    let tokenCost = images.length * 2
     let remainingTokenCost = tokenCost
 
     if (tokenPaidGrantBalanceArray && Array.isArray(tokenPaidGrantBalanceArray)) {
@@ -173,24 +201,24 @@ functions.http('a1execprodv2', async (req, res) => {
 
     // token balance v2:
     remainingTokenCost = tokenCost
-    let tokenBal = await redis.get(`tokenBal:${userId}`)
-    if (tokenBal && Array.isArray(tokenBal)) {
-      console.log('tokenBal: ', JSON.stringify(tokenBal))
-      tokenBal = tokenBal.filter(grant => (grant.expiresAt > new Date().getTime() && grant.amount > 0) || grant.type === 'free')
-      tokenBal.sort((a, b) => a.expiresAt > b.expiresAt ? 1 : -1)
-      tokenBal = tokenBal.reduce((acc, grant) => {
-        const amount = Math.min(grant.amount, remainingTokenCost)
-        remainingTokenCost -= amount
-        grant.amount -= amount
-        if (grant.type === 'free' && amount > 0) {
-          if (!grant.spend) { grant.spend = [] }
-          grant.spend = [...grant.spend, { ts: new Date().getTime(), amount }]
-        }
-        return grant.amount > 0 || grant.type === 'free' ? [...acc, grant] : acc
-      }, [])
-      console.log('tokenBal: ', JSON.stringify(tokenBal))
-      await redis.set(`tokenBal:${userId}`, tokenBal)
-    }
+    // let tokenBal = await redis.get(`tokenBal:${userId}`)
+    // if (tokenBal && Array.isArray(tokenBal)) {
+    console.log('tokenBal: ', JSON.stringify(tokenBal))
+    tokenBal = tokenBal.filter(grant => (grant.expiresAt > new Date().getTime() && grant.amount > 0) || grant.type === 'free')
+    tokenBal.sort((a, b) => a.expiresAt > b.expiresAt ? 1 : -1)
+    tokenBal = tokenBal.reduce((acc, grant) => {
+      const amount = Math.min(grant.amount, remainingTokenCost)
+      remainingTokenCost -= amount
+      grant.amount -= amount
+      if (grant.type === 'free' && amount > 0) {
+        if (!grant.spend) { grant.spend = [] }
+        grant.spend = [...grant.spend, { ts: new Date().getTime(), amount }]
+      }
+      return grant.amount > 0 || grant.type === 'free' ? [...acc, grant] : acc
+    }, [])
+    console.log('tokenBal: ', JSON.stringify(tokenBal))
+    await redis.set(`tokenBal:${userId}`, tokenBal)
+    // }
 
     // 🌳 update supabase
     await supabaseAdmin
